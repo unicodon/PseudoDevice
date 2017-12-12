@@ -1,4 +1,4 @@
-/* baibai.c
+/* morse.c
 Modified from the code on
 http://homepage3.nifty.com/rio_i/lab/driver24/00201chardev.html
 
@@ -10,13 +10,13 @@ As shown in the code, this code can be distributed under GNU GPL.
 #include <linux/module.h>
 #include <linux/spinlock.h>
 
-MODULE_AUTHOR("Ryuichi Ueda");
-MODULE_DESCRIPTION("2bai2bai!!!");
+MODULE_AUTHOR("Yoshiaki Jitsukawa");
+MODULE_DESCRIPTION("Telegraph Key Handler");
 MODULE_LICENSE("GPL");
 
 static int devmajor = 0x0123;
-static char* devname  = "baibai";
-static char* msg = "module [baibai.o]";
+static char* devname  = "morse";
+static char* msg = "module [morse.o]";
 
 #define MAXBUF 32
 static unsigned char devbuf[MAXBUF];
@@ -26,22 +26,22 @@ static spinlock_t spn_lock;
 
 static int num;
 
-static int baibai_open(struct inode* inode, struct file* filp);
-static ssize_t baibai_write(struct file* filp, const char* buf, size_t count, loff_t* pos );
-static ssize_t baibai_read( struct file* filp, char* buf, size_t count, loff_t* pos );
-static int baibai_release( struct inode* inode, struct file* filp );
-int unregister_baibai( unsigned int major, const char* name );
+static int morse_open(struct inode* inode, struct file* filp);
+static ssize_t morse_write(struct file* filp, const char* buf, size_t count, loff_t* pos );
+static ssize_t morse_read( struct file* filp, char* buf, size_t count, loff_t* pos );
+static int morse_release( struct inode* inode, struct file* filp );
+int unregister_morse( unsigned int major, const char* name );
 
-static struct file_operations baibai_fops = 
+static struct file_operations morse_fops = 
 {
 	owner   : THIS_MODULE,
-	read    : baibai_read,
-	write   : baibai_write,
-	open    : baibai_open,
-	release : baibai_release,
+	read    : morse_read,
+	write   : morse_write,
+	open    : morse_open,
+	release : morse_release,
 };
 
-static int baibai_open(struct inode* inode, struct file* filp){
+static int morse_open(struct inode* inode, struct file* filp){
 	printk( KERN_INFO "%s : open()  called\n", msg );
 
 	spin_lock( &spn_lock );
@@ -57,7 +57,7 @@ static int baibai_open(struct inode* inode, struct file* filp){
 	return 0;
 }
 
-static ssize_t baibai_read( struct file* filp, char* buf, size_t count, loff_t* pos )
+static ssize_t morse_read( struct file* filp, char* buf, size_t count, loff_t* pos )
 {
 	int copy_len;
 	int i;
@@ -99,7 +99,7 @@ static ssize_t baibai_read( struct file* filp, char* buf, size_t count, loff_t* 
 	return copy_len;
 }
 
-static ssize_t baibai_write(struct file* filp, const char* buf, size_t count, loff_t* pos )
+static ssize_t morse_write(struct file* filp, const char* buf, size_t count, loff_t* pos )
 {
 	int copy_len;
 
@@ -127,7 +127,7 @@ static ssize_t baibai_write(struct file* filp, const char* buf, size_t count, lo
 	return copy_len;
 }
 
-static int baibai_release( struct inode* inode, struct file* filp )
+static int morse_release( struct inode* inode, struct file* filp )
 {
 	printk( KERN_INFO "%s : close() called\n", msg );
 
@@ -140,7 +140,7 @@ static int baibai_release( struct inode* inode, struct file* filp )
 
 int init_module( void )
 {
-	if(register_chrdev(devmajor, devname, &baibai_fops)){
+	if(register_chrdev(devmajor, devname, &morse_fops)){
 		printk( KERN_INFO "%s : register_chrdev failed\n" );
 		return -EBUSY;
 	}
