@@ -45,7 +45,7 @@ static struct file_operations morse_fops =
 };
 
 static int morse_open(struct inode* inode, struct file* filp){
-	printk( KERN_INFO "%s : open()  called\n", msg );
+	printk( KERN_CRIT "%s : open()  called\n", msg );
 
 	spin_lock( &spn_lock );
 
@@ -68,7 +68,7 @@ static int morse_open(struct inode* inode, struct file* filp){
 
 static int morse_release( struct inode* inode, struct file* filp )
 {
-	printk( KERN_INFO "%s : close() called\n", msg );
+	printk( KERN_CRIT "%s : close() called\n", msg );
 
 	gpio_unexport(gpioButton);
 	gpio_free(gpioButton);
@@ -82,11 +82,23 @@ static int morse_release( struct inode* inode, struct file* filp )
 
 static ssize_t morse_read( struct file* filp, char* buf, size_t count, loff_t* pos )
 {
+#if 1
+	if (!count) {
+		return 0;
+	}
+	char c = gpio_get_value(gpioButton) ? '*' : '.';
+	if(copy_to_user( buf, &c, 1)) {
+		printk( KERN_CRIT "%s : copy_to_user failed\n", msg );
+		return -EFAULT;
+	}
+	*pos += 1;
+	return 1;	
+#else
 	int copy_len;
 	int i;
 	long a;
 
-	printk( KERN_INFO "%s : read()  called\n", msg );
+	printk( KERN_CRIT "%s : read()  called\n", msg );
 
 	if(count > buf_pos)
 		copy_len = buf_pos;
@@ -107,7 +119,7 @@ static ssize_t morse_read( struct file* filp, char* buf, size_t count, loff_t* p
 	len = strlen(nbuf);
 
 	if(copy_to_user( buf, nbuf,len )) {
-		printk( KERN_INFO "%s : copy_to_user failed\n", msg );
+		printk( KERN_CRIT "%s : copy_to_user failed\n", msg );
 		return -EFAULT;
 	}
 
@@ -117,19 +129,20 @@ static ssize_t morse_read( struct file* filp, char* buf, size_t count, loff_t* p
 		devbuf[i - copy_len] = devbuf[i];
 
 	buf_pos -= copy_len;
-	printk( KERN_INFO "%s : buf_pos = %d\n", msg, buf_pos );
+	printk( KERN_CRIT "%s : buf_pos = %d\n", msg, buf_pos );
 
 	return copy_len;
+#endif
 }
 
 static ssize_t morse_write(struct file* filp, const char* buf, size_t count, loff_t* pos )
 {
 	int copy_len;
 
-	printk( KERN_INFO "%s : write() called\n", msg );
+	printk( KERN_CRIT "%s : write() called\n", msg );
 
 	if (buf_pos == MAXBUF){
-		printk( KERN_INFO "%s : no space left\n", msg );
+		printk( KERN_CRIT "%s : no space left\n", msg );
 		return -ENOSPC;
 	}
 
@@ -139,26 +152,26 @@ static ssize_t morse_write(struct file* filp, const char* buf, size_t count, lof
 		copy_len = count;
 
 	if(copy_from_user( devbuf + buf_pos, buf, copy_len )){
-		printk( KERN_INFO "%s : copy_from_user failed\n", msg );
+		printk( KERN_CRIT "%s : copy_from_user failed\n", msg );
 		return -EFAULT;
 	}
 
 	*pos += copy_len;
 	buf_pos += copy_len;
 
-	printk( KERN_INFO "%s : buf_pos = %d\n", msg, buf_pos );
+	printk( KERN_CRIT "%s : buf_pos = %d\n", msg, buf_pos );
 	return copy_len;
 }
 
 int init_module( void )
 {
 	if(register_chrdev(devmajor, devname, &morse_fops)){
-		printk( KERN_INFO "%s : register_chrdev failed\n" );
+		printk( KERN_CRIT "%s : register_chrdev failed\n" );
 		return -EBUSY;
 	}
 
 	spin_lock_init( &spn_lock );
-	printk( KERN_INFO "%s : loaded  into kernel\n", msg );
+	printk( KERN_CRIT "%s : loaded  into kernel\n", msg );
 
 	return 0;
 }
@@ -166,5 +179,5 @@ int init_module( void )
 void cleanup_module( void )
 {
 	unregister_chrdev( devmajor, devname );
-	printk( KERN_INFO "%s : removed from kernel\n", msg );
+	printk( KERN_CRIT "%s : removed from kernel\n", msg );
 }
