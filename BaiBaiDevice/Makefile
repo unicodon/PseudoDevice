@@ -3,7 +3,7 @@ TARGET:= morse.ko
 
 all: ${TARGET}
 
-morse.ko: morse.c
+morse.ko: morse.c parse.h
 #	make -C /usr/src/linux-headers-`uname -r` M=`pwd` V=1 modules
 	make -C /usr/src/linux-headers-4.9.59+ M=`pwd` V=1 modules
 
