@@ -7,15 +7,14 @@ static int mbuf[MBUFLEN];
 static int mbuf_len = 0;
 char morse_parse(int on, int ms)
 {
+//	if (on)	printk( KERN_INFO "ms %d\n", ms);
 	char c = 0;
-	const int WPM = 10;
-	const int T = 1200 / WPM;
 	if (!on) {
-		if (ms > T * 2)
+		if (ms > 250)
 			c = ' ';
 	}
 	else {
-		if (ms < T)
+		if (ms < 150)
 			c = '.';
 		else
 			c = '-';
