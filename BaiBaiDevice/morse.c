@@ -6,6 +6,8 @@ As shown in the code, this code can be distributed under GNU GPL.
 */
 #include <asm/uaccess.h>
 #include <linux/fs.h>
+#include <linux/gpio.h>
+#include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/spinlock.h>
@@ -24,6 +26,7 @@ static int buf_pos;
 static int access_num;
 static spinlock_t spn_lock;
 
+static unsigned gpioButton = 2;
 static int num;
 
 static int morse_open(struct inode* inode, struct file* filp);
@@ -48,10 +51,30 @@ static int morse_open(struct inode* inode, struct file* filp){
 
 	if(access_num){
 		spin_unlock( &spn_lock );
+		printk( KERN_ERR "Busy\n" );
 		return -EBUSY;
 	}
 
 	access_num++;
+
+	spin_unlock( &spn_lock );
+	gpio_request(gpioButton, "sysfs");
+	gpio_direction_input(gpioButton);
+	gpio_export(gpioButton, false);
+	printk( KERN_CRIT "Button state is %d\n", gpio_get_value(gpioButton));
+
+	return 0;
+}
+
+static int morse_release( struct inode* inode, struct file* filp )
+{
+	printk( KERN_INFO "%s : close() called\n", msg );
+
+	gpio_unexport(gpioButton);
+	gpio_free(gpioButton);
+
+	spin_lock( &spn_lock );
+	access_num--;
 	spin_unlock( &spn_lock );
 
 	return 0;
@@ -125,17 +148,6 @@ static ssize_t morse_write(struct file* filp, const char* buf, size_t count, lof
 
 	printk( KERN_INFO "%s : buf_pos = %d\n", msg, buf_pos );
 	return copy_len;
-}
-
-static int morse_release( struct inode* inode, struct file* filp )
-{
-	printk( KERN_INFO "%s : close() called\n", msg );
-
-	spin_lock( &spn_lock );
-	access_num--;
-	spin_unlock( &spn_lock );
-
-	return 0;
 }
 
 int init_module( void )
