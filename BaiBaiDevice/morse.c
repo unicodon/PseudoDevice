@@ -79,6 +79,8 @@ static int morse_open(struct inode* inode, struct file* filp){
 
 	spin_unlock( &spn_lock );
 
+	init_keymap();
+
 	asm volatile("mcr p15, 0, %0, c15, c12, 0" :: "r" (7));
 
 	gpio_request(gpioButton, "sysfs");
@@ -119,7 +121,7 @@ static ssize_t morse_read( struct file* filp, char* buf, size_t count, loff_t* p
 {
 	int copy_len;
 	int i;
-	long a;
+	//long a;
 	int result;
 	unsigned long flags;
 
@@ -185,6 +187,7 @@ static ssize_t morse_write(struct file* filp, const char* buf, size_t count, lof
 static irq_handler_t morse_irq_handler(unsigned irq, void *dev_id, struct pt_regs *regs)
 {
 	int ms;
+	int button;
 
 //	getnstimeofday(&ts_current);
 //	ts_diff = timespec_sub(ts_current, ts_last);
@@ -201,7 +204,7 @@ static irq_handler_t morse_irq_handler(unsigned irq, void *dev_id, struct pt_reg
 //	ts_last = ts_current;
 	cc_last = cc_current;
 
-	int button = !gpio_get_value(gpioButton);
+	button = !gpio_get_value(gpioButton);
 	if (button == button_last) {
 		return (irq_handler_t)IRQ_HANDLED;
 	}
