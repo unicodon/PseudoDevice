@@ -26,6 +26,7 @@ static int buf_pos;
 static int access_num;
 static spinlock_t spn_lock;
 
+static int irqNumber;
 static unsigned gpioButton = 2;
 static int num;
 
@@ -35,7 +36,9 @@ static ssize_t morse_read( struct file* filp, char* buf, size_t count, loff_t* p
 static int morse_release( struct inode* inode, struct file* filp );
 int unregister_morse( unsigned int major, const char* name );
 
-static struct file_operations morse_fops = 
+static irq_handler_t morse_irq_handler(unsigned irq, void *dev_id, struct pt_regs *regs);
+
+static struct file_operations morse_fops =
 {
 	owner   : THIS_MODULE,
 	read    : morse_read,
@@ -45,6 +48,8 @@ static struct file_operations morse_fops =
 };
 
 static int morse_open(struct inode* inode, struct file* filp){
+	int result;
+
 	printk( KERN_CRIT "%s : open()  called\n", msg );
 
 	spin_lock( &spn_lock );
@@ -63,13 +68,19 @@ static int morse_open(struct inode* inode, struct file* filp){
 	gpio_export(gpioButton, false);
 	printk( KERN_CRIT "Button state is %d\n", gpio_get_value(gpioButton));
 
-	return 0;
+	irqNumber = gpio_to_irq(gpioButton);
+	printk( KERN_CRIT "IRQ %d\n", irqNumber);
+
+	result = request_irq(irqNumber, (irq_handler_t)morse_irq_handler, IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING, "morse_button_handler", NULL);
+
+	return result;
 }
 
 static int morse_release( struct inode* inode, struct file* filp )
 {
 	printk( KERN_CRIT "%s : close() called\n", msg );
 
+	free_irq(irqNumber, NULL);
 	gpio_unexport(gpioButton);
 	gpio_free(gpioButton);
 
@@ -86,13 +97,13 @@ static ssize_t morse_read( struct file* filp, char* buf, size_t count, loff_t* p
 	if (!count) {
 		return 0;
 	}
-	char c = gpio_get_value(gpioButton) ? '*' : '.';
+	char c = gpio_get_value(gpioButton) ? ' ' : ' ';
 	if(copy_to_user( buf, &c, 1)) {
 		printk( KERN_CRIT "%s : copy_to_user failed\n", msg );
 		return -EFAULT;
 	}
 	*pos += 1;
-	return 1;	
+	return 1;
 #else
 	int copy_len;
 	int i;
@@ -161,6 +172,12 @@ static ssize_t morse_write(struct file* filp, const char* buf, size_t count, lof
 
 	printk( KERN_CRIT "%s : buf_pos = %d\n", msg, buf_pos );
 	return copy_len;
+}
+
+static irq_handler_t morse_irq_handler(unsigned irq, void *dev_id, struct pt_regs *regs)
+{
+	printk( KERN_CRIT "INT \n" );
+	return (irq_handler_t)IRQ_HANDLED;
 }
 
 int init_module( void )
