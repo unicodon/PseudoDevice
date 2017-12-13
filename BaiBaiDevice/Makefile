@@ -21,5 +21,5 @@ install: all
 	sudo insmod ./morse.ko
  
 uninstall:
-	sudo rmmod ./morse
+	sudo rmmod ./morse.ko
 	sudo rm -f /dev/morse
