@@ -28,7 +28,6 @@ static spinlock_t spn_lock;
 
 static int irqNumber;
 static unsigned gpioButton = 2;
-static int num;
 
 static int morse_open(struct inode* inode, struct file* filp);
 static ssize_t morse_write(struct file* filp, const char* buf, size_t count, loff_t* pos );
@@ -37,6 +36,8 @@ static int morse_release( struct inode* inode, struct file* filp );
 int unregister_morse( unsigned int major, const char* name );
 
 static irq_handler_t morse_irq_handler(unsigned irq, void *dev_id, struct pt_regs *regs);
+
+static DECLARE_WAIT_QUEUE_HEAD(q);
 
 static struct file_operations morse_fops =
 {
@@ -63,6 +64,7 @@ static int morse_open(struct inode* inode, struct file* filp){
 	access_num++;
 
 	spin_unlock( &spn_lock );
+
 	gpio_request(gpioButton, "sysfs");
 	gpio_direction_input(gpioButton);
 	gpio_export(gpioButton, false);
@@ -93,44 +95,27 @@ static int morse_release( struct inode* inode, struct file* filp )
 
 static ssize_t morse_read( struct file* filp, char* buf, size_t count, loff_t* pos )
 {
-#if 1
-	if (!count) {
-		return 0;
-	}
-	char c = gpio_get_value(gpioButton) ? ' ' : ' ';
-	if(copy_to_user( buf, &c, 1)) {
-		printk( KERN_CRIT "%s : copy_to_user failed\n", msg );
-		return -EFAULT;
-	}
-	*pos += 1;
-	return 1;
-#else
 	int copy_len;
 	int i;
 	long a;
+	int result;
+	unsigned long flags;
 
 	printk( KERN_CRIT "%s : read()  called\n", msg );
 
+	result = wait_event_interruptible(q, buf_pos > 0);
+	if (result)
+		return result;
+
+	local_irq_save(flags);
 	if(count > buf_pos)
 		copy_len = buf_pos;
 	else
 		copy_len = count;
 
-	char nbuf[MAXBUF];
-	a = 0;
-	kstrtol(devbuf,0,&a);
-	a *= 2;
-
-	if(a < 1000000 && a > -1000000)
-		sprintf(nbuf,"%d\n",a);
-	else
-		sprintf(nbuf,"%d\n",0);
-
-	int len;
-	len = strlen(nbuf);
-
-	if(copy_to_user( buf, nbuf,len )) {
+	if(copy_to_user( buf, devbuf, copy_len )) {
 		printk( KERN_CRIT "%s : copy_to_user failed\n", msg );
+		local_irq_restore(flags);
 		return -EFAULT;
 	}
 
@@ -139,11 +124,12 @@ static ssize_t morse_read( struct file* filp, char* buf, size_t count, loff_t* p
 	for (i = copy_len;i < buf_pos;i++)
 		devbuf[i - copy_len] = devbuf[i];
 
+	local_irq_restore(flags);
+
 	buf_pos -= copy_len;
 	printk( KERN_CRIT "%s : buf_pos = %d\n", msg, buf_pos );
 
 	return copy_len;
-#endif
 }
 
 static ssize_t morse_write(struct file* filp, const char* buf, size_t count, loff_t* pos )
@@ -177,6 +163,14 @@ static ssize_t morse_write(struct file* filp, const char* buf, size_t count, lof
 static irq_handler_t morse_irq_handler(unsigned irq, void *dev_id, struct pt_regs *regs)
 {
 	printk( KERN_CRIT "INT \n" );
+
+	if (buf_pos < MAXBUF)
+	{
+		char c = 'X';
+		devbuf[buf_pos++] = c;
+		wake_up_interruptible(&q);
+	}
+
 	return (irq_handler_t)IRQ_HANDLED;
 }
 
